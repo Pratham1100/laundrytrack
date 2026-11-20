@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+<!-- AGENT-MEMORY:BEGIN -->
+- Keep laundry orders, status transitions, search, and metrics in a frontend-owned feature module until persistent storage is requested; this preserves a usable prototype without coupling it to a backend.
+<!-- AGENT-MEMORY:END -->
