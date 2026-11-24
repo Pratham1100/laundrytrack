@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "sonner";
 import {
   filterLaundryOrders,
   getLaundryMetrics,
@@ -188,30 +190,100 @@ function MobileHeader({
   );
 }
 
-function PageHeader({ section }: { section: SectionName }) {
+function Notifications({
+  orders,
+  onOpenStatus,
+}: {
+  orders: LaundryOrder[];
+  onOpenStatus: (status: LaundryStatus) => void;
+}) {
+  const metrics = getLaundryMetrics(orders);
+  const updates = [
+    { status: "Received" as const, count: metrics.received, text: "Waiting to be processed" },
+    { status: "In Process" as const, count: metrics.inProcess, text: "Currently being cleaned" },
+    { status: "Ready" as const, count: metrics.ready, text: "Ready for customer pickup" },
+  ].filter((update) => update.count > 0);
+  const updateCount = updates.reduce((total, update) => total + update.count, 0);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={`Notifications, ${updateCount} active order updates`}
+          className="relative shrink-0 bg-card"
+        >
+          <Bell className="size-4" aria-hidden="true" />
+          {updateCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
+              {updateCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold">Order updates</p>
+          <p className="mt-1 text-xs text-muted-foreground">Current work across your laundry orders</p>
+        </div>
+        {updates.length ? (
+          <div className="p-2">
+            {updates.map(({ status, count, text }) => (
+              <Button
+                key={status}
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenStatus(status)}
+                className="h-auto w-full justify-between gap-3 whitespace-normal px-3 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{count} {status.toLowerCase()} {count === 1 ? "order" : "orders"}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{text}</span>
+                </span>
+                <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">You’re all caught up.</p>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function PageHeader({
+  section,
+  orders,
+  onOpenStatus,
+}: {
+  section: SectionName;
+  orders: LaundryOrder[];
+  onOpenStatus: (status: LaundryStatus) => void;
+}) {
   const copy = SECTION_COPY[section];
 
   return (
-    <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
-      <div>
+    <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:mb-7 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+      <div className="min-w-0">
         <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>LaundryTrack</span>
           <span aria-hidden="true">/</span>
           <span className="text-foreground">{section}</span>
         </div>
-        <h1 className="text-[26px] font-bold leading-tight tracking-normal text-foreground sm:text-[30px]">
+        <h1 className="text-2xl font-bold leading-tight text-foreground sm:text-[30px]">
           {copy.title}
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{copy.subtitle}</p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <div className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground sm:flex">
           <CalendarDays className="size-4" aria-hidden="true" />
           Friday, November 20, 2026
         </div>
-        <Button variant="outline" size="icon" aria-label="Notifications" className="bg-card">
-          <Bell className="size-4" aria-hidden="true" />
-        </Button>
+        <Notifications orders={orders} onOpenStatus={onOpenStatus} />
       </div>
     </header>
   );
@@ -232,28 +304,42 @@ function StatCard({
   description,
   icon: Icon,
   color,
+  onClick,
 }: {
   label: string;
   value: number;
   description: string;
   icon: ComponentType<{ className?: string }>;
   color: string;
+  onClick: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={onClick}
+      aria-label={`Show ${label.toLowerCase()} orders: ${value}`}
+      className="h-auto min-h-32 w-full flex-col items-stretch whitespace-normal rounded-lg border border-border bg-card p-3 text-left shadow-sm hover:bg-muted/40 sm:min-h-36 sm:p-5"
+    >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-        <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${color}`}>
-          <Icon className="size-[18px]" aria-hidden="true" />
+        <p className="min-w-0 text-[13px] font-medium text-muted-foreground">{label}</p>
+        <div className={`flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9 ${color}`}>
+          <Icon className="size-4 sm:size-[18px]" aria-hidden="true" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] font-bold leading-none tabular-nums text-foreground">{value}</p>
-      <p className="mt-2 text-xs text-muted-foreground">{description}</p>
-    </section>
+      <p className="mt-3 w-full text-[28px] font-bold leading-none tabular-nums text-foreground">{value}</p>
+      <p className="mt-2 w-full text-xs text-muted-foreground">{description}</p>
+    </Button>
   );
 }
 
-function Metrics({ orders }: { orders: LaundryOrder[] }) {
+function Metrics({
+  orders,
+  onSelectStatus,
+}: {
+  orders: LaundryOrder[];
+  onSelectStatus: (status: LaundryStatusFilter) => void;
+}) {
   const metrics = getLaundryMetrics(orders);
   const cards = [
     {
@@ -295,9 +381,17 @@ function Metrics({ orders }: { orders: LaundryOrder[] }) {
 
   return (
     <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:gap-4">
-      {cards.map((card) => (
-        <StatCard key={card.label} {...card} />
-      ))}
+      {cards.map((card, index) => {
+        const cardStatus: LaundryStatusFilter =
+          index === 0 ? "All statuses" : LAUNDRY_STATUSES[index - 1] ?? "All statuses";
+        return (
+          <StatCard
+            key={card.label}
+            {...card}
+            onClick={() => onSelectStatus(cardStatus ?? "All statuses")}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -369,8 +463,9 @@ function OrderTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[690px] border-collapse text-left text-sm">
+    <>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="w-full min-w-[690px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase text-muted-foreground">
             <th className="px-5 py-3.5">Barcode ID</th>
@@ -413,8 +508,45 @@ function OrderTable({
             );
           })}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+      <div className="divide-y divide-border border-t border-border lg:hidden">
+        {orders.map((order) => {
+          const nextStatus = getNextLaundryStatus(order.status);
+          return (
+            <article key={order.barcodeId} className="p-4">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs font-semibold text-primary">{order.barcodeId}</p>
+                  <h3 className="mt-1 truncate text-sm font-semibold">{order.customerName}</h3>
+                </div>
+                <StatusBadge status={order.status} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>{order.items} {order.items === 1 ? "item" : "items"}</span>
+                <span>{order.date}</span>
+              </div>
+              <div className="mt-3 flex justify-end">
+                {nextStatus ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onAdvance(order.barcodeId)}
+                    aria-label={`Advance ${order.barcodeId} to ${nextStatus}`}
+                    className="min-h-11 gap-2 px-3"
+                  >
+                    Move to {nextStatus}
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </Button>
+                ) : (
+                  <span className="flex min-h-11 items-center text-xs font-medium text-muted-foreground">Order delivered</span>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -500,8 +632,24 @@ function BarcodeLookup({ orders }: { orders: LaundryOrder[] }) {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmittedBarcode(barcode);
+    const value = barcode.trim();
+    setSubmittedBarcode(value);
     setSubmitted(true);
+    if (!value) {
+      toast.error("Enter a barcode ID to look up.");
+      return;
+    }
+
+    const match = orders.find((item) => item.barcodeId.toLowerCase() === value.toLowerCase());
+    if (match) {
+      toast.success(`Found ${match.customerName}`, {
+        description: `${match.barcodeId} is currently ${match.status.toLowerCase()}.`,
+      });
+    } else {
+      toast.error("Barcode not found", {
+        description: `No order matches ${value}. Check the ID and try again.`,
+      });
+    }
   };
 
   return (
@@ -566,6 +714,7 @@ function BarcodeLookup({ orders }: { orders: LaundryOrder[] }) {
 function DashboardView({
   orders,
   onAdvance,
+  onSelectStatus,
   query,
   onQueryChange,
   status,
@@ -574,6 +723,7 @@ function DashboardView({
 }: {
   orders: LaundryOrder[];
   onAdvance: (barcodeId: string) => void;
+  onSelectStatus: (status: LaundryStatusFilter) => void;
   query: string;
   onQueryChange: (query: string) => void;
   status: LaundryStatusFilter;
@@ -582,7 +732,7 @@ function DashboardView({
 }) {
   return (
     <>
-      <Metrics orders={orders} />
+      <Metrics orders={orders} onSelectStatus={onSelectStatus} />
       <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1.65fr)_minmax(310px,0.85fr)]">
         <OrderPanel
           compact
@@ -621,7 +771,7 @@ function CustomersView({ orders }: { orders: LaundryOrder[] }) {
         <h2 className="text-base font-semibold">Customer directory</h2>
         <p className="mt-1 text-xs text-muted-foreground">Customers in your sample order history</p>
       </div>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[500px] text-left text-sm">
           <thead><tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase text-muted-foreground">
             <th className="px-5 py-3.5">Customer name</th><th className="px-4 py-3.5">Orders</th><th className="px-4 py-3.5">Latest order</th><th className="px-4 py-3.5">Latest status</th>
@@ -637,6 +787,18 @@ function CustomersView({ orders }: { orders: LaundryOrder[] }) {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="divide-y divide-border md:hidden">
+        {customers.map((customer) => customer.latest && (
+          <article key={customer.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-4">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold">{customer.name}</h3>
+              <p className="mt-1 font-mono text-xs text-primary">{customer.latest.barcodeId}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{customer.orders} {customer.orders === 1 ? "order" : "orders"}</p>
+            </div>
+            <StatusBadge status={customer.latest.status} />
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -714,13 +876,23 @@ export function LaundryDashboard() {
   );
 
   const advanceOrder = (barcodeId: string) => {
+    const order = orders.find((item) => item.barcodeId === barcodeId);
+    const nextStatus = order ? getNextLaundryStatus(order.status) : null;
+    if (!nextStatus) return;
+
     setOrders((currentOrders) =>
       currentOrders.map((order) => {
         if (order.barcodeId !== barcodeId) return order;
-        const nextStatus = getNextLaundryStatus(order.status);
-        return nextStatus ? { ...order, status: nextStatus } : order;
+        return { ...order, status: nextStatus };
       }),
     );
+    toast.success(`${barcodeId} moved to ${nextStatus}`);
+  };
+
+  const openStatusOrders = (status: LaundryStatusFilter) => {
+    setSearchQuery("");
+    setStatusFilter(status);
+    setSection("Orders");
   };
 
   return (
@@ -728,12 +900,13 @@ export function LaundryDashboard() {
       <Sidebar section={section} onSelect={setSection} />
       <div className="min-w-0 flex-1">
         <MobileHeader section={section} onSelect={setSection} />
-        <main className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 lg:px-9">
-          <PageHeader section={section} />
+        <main className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-6 sm:py-8 lg:px-9">
+          <PageHeader section={section} orders={orders} onOpenStatus={openStatusOrders} />
           {section === "Dashboard" && (
             <DashboardView
               orders={orders}
               onAdvance={advanceOrder}
+              onSelectStatus={openStatusOrders}
               query={searchQuery}
               onQueryChange={setSearchQuery}
               status={statusFilter}
